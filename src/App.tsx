@@ -1,9 +1,12 @@
-import { Tldraw } from "tldraw";
+import ScreenshotAnnotator from "./components/ScreenshotAnnotator";
 
 function App() {
   return (
-    <div className="tldraw-root">
-      <Tldraw persistenceKey="curate-draw" />
+    <div className="page">
+      <h1>Quick Screenshot Annotator</h1>
+      <div className="annotator-frame">
+        <ScreenshotAnnotator />
+      </div>
     </div>
   );
 }

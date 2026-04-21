@@ -1,19 +1,287 @@
+:root {
+	--teal: #88C1C1;
+	--orange: #E84B1C;
+	--navy: #1A2C6A;
+	--cream: #EDE8D0;
+	--white: #ffffff;
+}
+
+*, *::before, *::after {
+	box-sizing: border-box;
+}
+
 html,
 body,
 #root {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+	font-family: 'Space Mono', monospace;
+	background: var(--white);
+	color: var(--navy);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
-.tldraw-root {
-  position: fixed;
-  inset: 0;
+.page {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 1rem 0.5rem;
+	gap: 0.75rem;
+}
+
+.page h1 {
+	font-size: 1rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	margin: 0;
+	color: var(--navy);
+}
+
+.annotator-frame {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+}
+
+.sa-root {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.sa-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
+	font-size: 0.8rem;
+	color: var(--navy);
+}
+
+.sa-canvas {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	border: 1px solid color-mix(in srgb, var(--navy) 20%, transparent);
+	border-radius: 4px;
+	overflow: hidden;
+	background: color-mix(in srgb, var(--navy) 6%, transparent);
+}
+
+.sa-canvas > div > img {
+	object-fit: contain;
+	object-position: center;
+}
+
+.sa-button {
+	font-family: inherit;
+	font-size: 0.75rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	font-weight: 700;
+	padding: 0.5rem 0.9rem;
+	border: 1px solid var(--navy);
+	background: var(--white);
+	color: var(--navy);
+	border-radius: 4px;
+	cursor: pointer;
+	box-shadow: 3px 3px 0 color-mix(in srgb, var(--navy) 20%, transparent);
+	transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.sa-button:hover:not(:disabled) {
+	box-shadow: 3px 3px 0 var(--navy);
+}
+
+.sa-button:active:not(:disabled) {
+	transform: translate(1px, 1px);
+	box-shadow: 2px 2px 0 var(--navy);
+}
+
+.sa-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.sa-hint kbd {
+	font-family: inherit;
+	font-size: 0.7rem;
+	padding: 0.05rem 0.35rem;
+	border: 1px solid color-mix(in srgb, var(--navy) 35%, transparent);
+	border-radius: 3px;
+	background: var(--cream);
+}
+
+.sa-dims {
+	font-size: 0.7rem;
+	letter-spacing: 0.05em;
+	color: color-mix(in srgb, var(--navy) 65%, transparent);
+}
+
+.sa-status {
+	font-size: 0.75rem;
+	color: var(--orange);
+}
+
+.sa-button--ghost {
+	margin-left: auto;
+}
+
+.sa-segment {
+	display: inline-flex;
+	border: 1px solid var(--navy);
+	border-radius: 4px;
+	overflow: hidden;
+	box-shadow: 3px 3px 0 color-mix(in srgb, var(--navy) 20%, transparent);
+}
+
+.sa-segment-btn {
+	font-family: inherit;
+	font-size: 0.7rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	font-weight: 700;
+	padding: 0.45rem 0.7rem;
+	border: none;
+	background: var(--white);
+	color: var(--navy);
+	cursor: pointer;
+}
+
+.sa-segment-btn + .sa-segment-btn {
+	border-left: 1px solid var(--navy);
+}
+
+.sa-segment-btn.is-active {
+	background: var(--navy);
+	color: var(--white);
+}
+
+.sa-segment-btn:hover:not(.is-active) {
+	background: color-mix(in srgb, var(--navy) 10%, transparent);
+}
+
+.sa-about-backdrop {
+	position: fixed;
+	inset: 0;
+	background: color-mix(in srgb, var(--navy) 35%, transparent);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1.5rem;
+	z-index: 2147483647;
+}
+
+.sa-about-backdrop--upper {
+	align-items: flex-start;
+	padding-top: 12vh;
+}
+
+.sa-about-dialog {
+	position: relative;
+	background: var(--white);
+	border: 1px solid var(--navy);
+	border-radius: 4px;
+	box-shadow: 6px 6px 0 color-mix(in srgb, var(--navy) 30%, transparent);
+	max-width: 560px;
+	width: 100%;
+	max-height: 100%;
+	overflow: auto;
+	padding: 1.25rem 1.5rem 1.5rem;
+	color: var(--navy);
+	font-size: 0.85rem;
+	line-height: 1.7;
+}
+
+.sa-about-dialog h2 {
+	font-size: 0.85rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	margin: 0 0 0.5rem;
+	color: var(--navy);
+}
+
+.sa-about-dialog h3 {
+	font-size: 0.7rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	margin: 1rem 0 0.25rem;
+	color: color-mix(in srgb, var(--navy) 80%, transparent);
+}
+
+.sa-about-dialog p {
+	margin: 0 0 0.5rem;
+}
+
+.sa-about-dialog ol,
+.sa-about-dialog ul {
+	margin: 0 0 0.5rem;
+	padding-left: 1.2rem;
+}
+
+.sa-about-dialog li {
+	margin: 0.1rem 0;
+}
+
+.sa-about-dialog a {
+	color: var(--orange);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+.sa-about-actions {
+	display: flex;
+	gap: 0.75rem;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	margin-top: 1rem;
+}
+
+.sa-about-actions--center {
+	justify-content: center;
+}
+
+.sa-button--primary,
+.sa-button.sa-button--primary {
+	background: var(--orange);
+	border-color: var(--orange);
+	color: var(--white);
+	box-shadow: 3px 3px 0 color-mix(in srgb, var(--orange) 35%, transparent);
+}
+
+.sa-button.sa-button--primary:hover:not(:disabled) {
+	opacity: 0.9;
+	box-shadow: 3px 3px 0 color-mix(in srgb, var(--orange) 35%, transparent);
+}
+
+.sa-button.sa-button--primary:active:not(:disabled) {
+	opacity: 0.9;
+	box-shadow: 2px 2px 0 color-mix(in srgb, var(--orange) 35%, transparent);
+}
+
+.sa-about-close {
+	position: absolute;
+	top: 0.5rem;
+	right: 0.5rem;
+	width: 1.75rem;
+	height: 1.75rem;
+	border: 1px solid color-mix(in srgb, var(--navy) 30%, transparent);
+	background: var(--white);
+	color: var(--navy);
+	border-radius: 3px;
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 0.9rem;
+	line-height: 1;
+}
+
+.sa-about-close:hover {
+	border-color: var(--navy);
 }
