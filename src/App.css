@@ -89,6 +89,10 @@ body,
 	margin: 0 0.1rem;
 }
 
+.sa-sep--tight {
+	margin-left: -0.45rem;
+}
+
 .sa-spacer {
 	flex: 1 1 auto;
 	min-width: 0.5rem;
@@ -196,6 +200,31 @@ body,
 	background: var(--white);
 }
 
+.sa-icon-button {
+	width: 2rem;
+	height: 2rem;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--navy);
+	background: var(--white);
+	color: var(--navy);
+	border-radius: 4px;
+	cursor: pointer;
+	box-shadow: 3px 3px 0 color-mix(in srgb, var(--navy) 20%, transparent);
+	transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.sa-icon-button:hover:not(:disabled) {
+	box-shadow: 3px 3px 0 var(--navy);
+}
+
+.sa-icon-button:active:not(:disabled) {
+	transform: translate(1px, 1px);
+	box-shadow: 2px 2px 0 var(--navy);
+}
+
 .sa-stack {
 	display: inline-flex;
 	flex-direction: column;
@@ -239,6 +268,18 @@ body,
 	min-width: 16rem;
 	box-shadow: 3px 3px 0 color-mix(in srgb, var(--navy) 20%, transparent);
 	transition: box-shadow 0.15s;
+}
+
+.sa-input--block {
+	display: block;
+	width: 100%;
+	min-width: 0;
+	padding-right: 2.2rem;
+}
+
+.sa-input-wrap--block {
+	display: block;
+	width: 100%;
 }
 
 .sa-input:focus {
@@ -391,6 +432,22 @@ body,
 	color: var(--orange);
 	text-decoration: underline;
 	text-underline-offset: 2px;
+}
+
+.sa-about-dialog code {
+	font-family: 'Space Mono', monospace;
+	font-size: 0.75rem;
+	padding: 0.05rem 0.3rem;
+	border: 1px solid color-mix(in srgb, var(--navy) 25%, transparent);
+	border-radius: 3px;
+	background: var(--cream);
+	color: var(--navy);
+	word-break: break-all;
+}
+
+.sa-about-dialog .sa-hint {
+	color: color-mix(in srgb, var(--navy) 70%, transparent);
+	font-size: 0.75rem;
 }
 
 .sa-about-actions {

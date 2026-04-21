@@ -2,6 +2,9 @@
 
 ```
 bun run tauri dev
+bun run tauri build
+python3 scripts/copy_release_to_downloads.py
+
 ```
 
 A minimal desktop app for quickly annotating screenshots. Paste a screenshot from
