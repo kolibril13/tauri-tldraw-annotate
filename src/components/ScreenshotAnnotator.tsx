@@ -367,6 +367,7 @@ export default function ScreenshotAnnotator() {
 				background: true,
 				padding: 0,
 				scale: 1,
+				pixelRatio: 1,
 				quality: 0.92,
 			});
 			const ext = format === 'jpeg' ? 'jpg' : format;
