@@ -14,11 +14,17 @@ import {
 	type TLEditorSnapshot,
 	type TLPageId,
 } from 'tldraw';
+import { getAssetUrlsByImport } from '@tldraw/assets/imports.vite';
 import 'tldraw/tldraw.css';
+
+const assetUrls = getAssetUrlsByImport();
 
 STROKE_SIZES.m = 7;
 STROKE_SIZES.l = 10;
 STROKE_SIZES.xl = 20;
+
+const TLDRAW_LICENSE_KEY =
+	'tldraw-2026-07-31/WyJQUVo1VG1jbCIsWyIqIl0sMTYsIjIwMjYtMDctMzEiXQ.CkPyjP0F73725rI7q6mqJHPO1raBBtGrGMD4brtu2PaIXIywy8PRtij6fcPZHLws627nS5OuHc2OPquvffbhog';
 
 type Dimensions = { w: number; h: number };
 
@@ -673,6 +679,8 @@ export default function ScreenshotAnnotator() {
 			<div className="sa-canvas">
 				{isEditing ? (
 					<Tldraw
+						licenseKey={TLDRAW_LICENSE_KEY}
+						assetUrls={assetUrls}
 						snapshot={snapshot}
 						onMount={(editor) => {
 							editorRef.current = editor;
@@ -689,6 +697,8 @@ export default function ScreenshotAnnotator() {
 					/>
 				) : snapshot && previewBounds ? (
 					<TldrawImage
+						licenseKey={TLDRAW_LICENSE_KEY}
+						assetUrls={assetUrls}
 						snapshot={snapshot}
 						pageId={previewPageId}
 						background={true}

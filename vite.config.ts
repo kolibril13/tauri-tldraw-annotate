@@ -8,6 +8,13 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [react()],
 
+  // `@tldraw/assets/imports.vite` uses Vite's `?url` import suffix, which
+  // esbuild (used by Vite's dep optimizer) doesn't understand. Pre-bundling
+  // leaves those imports as `undefined` and crashes `formatAssetUrl`.
+  optimizeDeps: {
+    exclude: ["@tldraw/assets"],
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
