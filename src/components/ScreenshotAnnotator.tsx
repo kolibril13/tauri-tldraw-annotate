@@ -68,7 +68,13 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 const OUTPUT_FOLDER_STORAGE_KEY = 'sa.outputFolder';
-const BLOG_PATH_STORAGE_KEY = 'sa.blogPath';
+const FORMAT_STORAGE_KEY = 'sa.format';
+
+type OutputFormat = 'jpeg' | 'png' | 'webp';
+
+function isOutputFormat(value: string | null): value is OutputFormat {
+	return value === 'jpeg' || value === 'png' || value === 'webp';
+}
 
 function isTauriRuntime(): boolean {
 	return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -131,7 +137,6 @@ export default function ScreenshotAnnotator() {
 		}
 
 		setStatus(null);
-		setLastSavedFilename(null);
 
 		const dataUrl = await blobToDataUrl(blob);
 		const original = await loadImageSize(dataUrl);
@@ -300,7 +305,23 @@ export default function ScreenshotAnnotator() {
 		return () => window.removeEventListener('paste', handler, true);
 	}, [loadScreenshot]);
 
-	const [format, setFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg');
+	const [format, setFormat] = useState<OutputFormat>(() => {
+		if (typeof window === 'undefined') return 'jpeg';
+		try {
+			const stored = window.localStorage.getItem(FORMAT_STORAGE_KEY);
+			return isOutputFormat(stored) ? stored : 'jpeg';
+		} catch {
+			return 'jpeg';
+		}
+	});
+	useEffect(() => {
+		if (typeof window === 'undefined') return;
+		try {
+			window.localStorage.setItem(FORMAT_STORAGE_KEY, format);
+		} catch {
+			// ignore storage errors (e.g. private mode)
+		}
+	}, [format]);
 
 	const [outputFolder, setOutputFolder] = useState<string>(() => {
 		if (typeof window === 'undefined') return '';
@@ -319,24 +340,6 @@ export default function ScreenshotAnnotator() {
 		}
 	}, [outputFolder]);
 
-	const [blogPath, setBlogPath] = useState<string>(() => {
-		if (typeof window === 'undefined') return '';
-		try {
-			return window.localStorage.getItem(BLOG_PATH_STORAGE_KEY) ?? '';
-		} catch {
-			return '';
-		}
-	});
-	useEffect(() => {
-		if (typeof window === 'undefined') return;
-		try {
-			window.localStorage.setItem(BLOG_PATH_STORAGE_KEY, blogPath);
-		} catch {
-			// ignore storage errors (e.g. private mode)
-		}
-	}, [blogPath]);
-
-	const [lastSavedFilename, setLastSavedFilename] = useState<string | null>(null);
 	const [showSettings, setShowSettings] = useState(false);
 
 	const pickOutputFolder = useCallback(async () => {
@@ -406,7 +409,6 @@ export default function ScreenshotAnnotator() {
 				try {
 					const savedPath = await saveBlobToFolder(blob, trimmedFolder, filename);
 					setStatus(null);
-					setLastSavedFilename(filename);
 					showToast(`Saved to ${savedPath}`);
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
@@ -416,34 +418,11 @@ export default function ScreenshotAnnotator() {
 			}
 
 			downloadBlob(blob, filename);
-			setLastSavedFilename(filename);
 			showToast(`Saved ${filename}`);
 		} catch {
 			setStatus(`Could not generate ${format.toUpperCase()}.`);
 		}
 	}, [format, outputFolder, showToast]);
-
-	const copyForBlog = useCallback(async () => {
-		if (!lastSavedFilename) {
-			setStatus('Save the image first, then copy the <img> tag.');
-			return;
-		}
-
-		const rawPrefix = blogPath.trim();
-		const prefix = rawPrefix === '' ? '/' : rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}/`;
-		const src = `${prefix}${lastSavedFilename}`;
-		const html = `<img src="${src}" alt="" loading="lazy" style="max-width: 400px; height: auto;" />`;
-
-		try {
-			await navigator.clipboard.writeText(html);
-		} catch {
-			setStatus('Could not copy to clipboard.');
-			return;
-		}
-
-		setStatus(null);
-		showToast(`Copied <img> for ${lastSavedFilename}`);
-	}, [blogPath, lastSavedFilename, showToast]);
 
 	const enterPreview = useCallback(() => {
 		const editor = editorRef.current;
@@ -522,20 +501,6 @@ export default function ScreenshotAnnotator() {
 				<span className="sa-sep sa-sep--tight" aria-hidden="true" />
 
 				<div className="sa-group sa-group--export">
-					<div className="sa-segment" role="group" aria-label="Export format">
-						{(['jpeg', 'png', 'webp'] as const).map((f) => (
-							<button
-								key={f}
-								type="button"
-								className={`sa-segment-btn${format === f ? ' is-active' : ''}`}
-								onClick={() => setFormat(f)}
-								aria-pressed={format === f}
-							>
-								{f.toUpperCase()}
-							</button>
-						))}
-					</div>
-
 					<button type="button" className="sa-button" onClick={downloadImage}>
 						{outputFolder.trim() && isTauriRuntime() ? 'Save' : 'Download'}{' '}
 						{format.toUpperCase()}
@@ -606,20 +571,6 @@ export default function ScreenshotAnnotator() {
 							Edit drawing
 						</button>
 					)}
-
-					<button
-						type="button"
-						className="sa-button"
-						onClick={copyForBlog}
-						disabled={!lastSavedFilename}
-						title={
-							lastSavedFilename
-								? `Copy <img> tag referencing ${lastSavedFilename}`
-								: 'Save the image first'
-						}
-					>
-						Copy &lt;img&gt;
-					</button>
 				</div>
 
 				<span className="sa-spacer" aria-hidden="true" />
@@ -730,45 +681,21 @@ export default function ScreenshotAnnotator() {
 						</button>
 						<h2>Settings</h2>
 
-						<h3>Blog path</h3>
-						<p>
-							URL prefix prepended to the filename when copying the{' '}
-							<code>&lt;img&gt;</code> tag for a blog post.
-						</p>
-						<div className="sa-input-wrap sa-input-wrap--block">
-							<input
-								type="text"
-								className="sa-input sa-input--block"
-								value={blogPath}
-								onChange={(e) => setBlogPath(e.target.value)}
-								placeholder="/blog/26-4/"
-								spellCheck={false}
-								autoCorrect="off"
-								autoCapitalize="off"
-							/>
-							{blogPath && (
+						<h3>Export format</h3>
+						<p>Format used when saving or downloading annotated screenshots.</p>
+						<div className="sa-segment" role="group" aria-label="Export format">
+							{(['jpeg', 'png', 'webp'] as const).map((f) => (
 								<button
+									key={f}
 									type="button"
-									className="sa-input-clear"
-									aria-label="Clear blog path"
-									onClick={() => setBlogPath('')}
+									className={`sa-segment-btn${format === f ? ' is-active' : ''}`}
+									onClick={() => setFormat(f)}
+									aria-pressed={format === f}
 								>
-									×
+									{f.toUpperCase()}
 								</button>
-							)}
+							))}
 						</div>
-						<p className="sa-hint">
-							Example result:{' '}
-							<code>
-								&lt;img src="
-								{(() => {
-									const raw = blogPath.trim();
-									const prefix = raw === '' ? '/' : raw.endsWith('/') ? raw : `${raw}/`;
-									return `${prefix}my-screenshot.jpg`;
-								})()}
-								" …&gt;
-							</code>
-						</p>
 
 						<div className="sa-about-actions">
 							<button
