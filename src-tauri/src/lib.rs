@@ -146,6 +146,11 @@ fn save_image_to_folder(
 }
 
 #[tauri::command]
+fn quit(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
     let path = expand_tilde(&path);
     std::fs::read_to_string(&path)
@@ -162,7 +167,8 @@ pub fn run() {
             greet,
             save_image_to_folder,
             capture_screenshot,
-            read_text_file
+            read_text_file,
+            quit
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

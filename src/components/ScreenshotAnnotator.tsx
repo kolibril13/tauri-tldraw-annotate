@@ -966,11 +966,11 @@ export default function ScreenshotAnnotator() {
 							<div className="sa-about-actions">
 								<button
 									type="button"
-									className="sa-button"
+									className="sa-button sa-button--primary"
 									onClick={async () => {
 										if (isTauriRuntime()) {
-											const { getCurrentWindow } = await import('@tauri-apps/api/window');
-											await getCurrentWindow().close();
+											const { invoke } = await import('@tauri-apps/api/core');
+											await invoke('quit');
 										} else {
 											setSavedImage(null);
 										}
