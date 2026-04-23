@@ -74,7 +74,8 @@ function downloadBlob(blob: Blob, filename: string) {
 	URL.revokeObjectURL(url);
 }
 
-const OUTPUT_FOLDER_STORAGE_KEY = 'sa.outputFolder';
+const CONFIG_FILE_STORAGE_KEY = 'sa.configFile';
+const DEFAULT_CONFIG_PATH = '/Users/jan-hendrik/projects/jan-hendrik-mueller.de/annotator.config.json';
 const FORMAT_STORAGE_KEY = 'sa.format';
 
 type OutputFormat = 'jpeg' | 'png' | 'webp';
@@ -252,8 +253,12 @@ export default function ScreenshotAnnotator() {
 			await loadScreenshot(blob);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			// Sentinel from the Rust side when the user presses Esc.
+			// Sentinels from the Rust side.
 			if (message === 'cancelled') return;
+			if (message === 'permission_denied') {
+				setStatus('Screen Recording permission required — System Settings opened, grant access and try again.');
+				return;
+			}
 			setStatus(`Could not capture screenshot: ${message}`);
 		}
 	}, [loadScreenshot]);
@@ -363,43 +368,64 @@ export default function ScreenshotAnnotator() {
 		}
 	}, [format]);
 
-	const [outputFolder, setOutputFolder] = useState<string>(() => {
-		if (typeof window === 'undefined') return '';
+	const [configFilePath, setConfigFilePath] = useState<string>(() => {
+		if (typeof window === 'undefined') return DEFAULT_CONFIG_PATH;
 		try {
-			return window.localStorage.getItem(OUTPUT_FOLDER_STORAGE_KEY) ?? '';
+			return window.localStorage.getItem(CONFIG_FILE_STORAGE_KEY) ?? DEFAULT_CONFIG_PATH;
 		} catch {
-			return '';
+			return DEFAULT_CONFIG_PATH;
 		}
 	});
 	useEffect(() => {
 		if (typeof window === 'undefined') return;
 		try {
-			window.localStorage.setItem(OUTPUT_FOLDER_STORAGE_KEY, outputFolder);
+			window.localStorage.setItem(CONFIG_FILE_STORAGE_KEY, configFilePath);
 		} catch {
 			// ignore storage errors (e.g. private mode)
 		}
-	}, [outputFolder]);
+	}, [configFilePath]);
+
+	const [outputFolder, setOutputFolder] = useState<string>('');
+	const [imgSrcPrefix, setImgSrcPrefix] = useState<string>('');
+
+	const loadConfig = useCallback(async () => {
+		if (!isTauriRuntime() || !configFilePath.trim()) return;
+		try {
+			const { invoke } = await import('@tauri-apps/api/core');
+			const content = await invoke<string>('read_text_file', { path: configFilePath });
+			const config = JSON.parse(content) as Record<string, unknown>;
+			setOutputFolder(typeof config.outputFolder === 'string' ? config.outputFolder : '');
+			setImgSrcPrefix(typeof config.imgSrcPrefix === 'string' ? config.imgSrcPrefix : '');
+		} catch {
+			setOutputFolder('');
+			setImgSrcPrefix('');
+		}
+	}, [configFilePath]);
+
+	useEffect(() => {
+		void loadConfig();
+	}, [loadConfig]);
 
 	const [showSettings, setShowSettings] = useState(false);
 
-	const pickOutputFolder = useCallback(async () => {
+	const pickConfigFile = useCallback(async () => {
 		if (!isTauriRuntime()) return;
 		try {
 			const { open } = await import('@tauri-apps/plugin-dialog');
 			const selected = await open({
-				directory: true,
 				multiple: false,
-				title: 'Choose output folder',
-				defaultPath: outputFolder.trim() || undefined,
+				title: 'Choose config file',
+				filters: [{ name: 'JSON', extensions: ['json'] }],
+				defaultPath: configFilePath.trim() || undefined,
 			});
 			if (typeof selected === 'string' && selected.length > 0) {
-				setOutputFolder(selected);
+				setConfigFilePath(selected);
 			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			setStatus(`Could not open folder picker: ${message}`);
+			setStatus(`Could not open file picker: ${message}`);
 		}
-	}, [outputFolder]);
+	}, [configFilePath]);
 
 	const [toast, setToast] = useState<string | null>(null);
 	const toastTimerRef = useRef<number | null>(null);
@@ -615,7 +641,7 @@ export default function ScreenshotAnnotator() {
 							{isTauriRuntime() && (
 								<button
 									type="button"
-									className="sa-button sa-button--primary"
+									className="sa-button"
 									onClick={captureScreenshot}
 									disabled={!isEditing}
 									title={
@@ -654,66 +680,10 @@ export default function ScreenshotAnnotator() {
 				<span className="sa-sep sa-sep--tight" aria-hidden="true" />
 
 				<div className="sa-group sa-group--export">
-					<button type="button" className="sa-button" onClick={downloadImage}>
+					<button type="button" className="sa-button sa-button--primary" onClick={downloadImage}>
 						{outputFolder.trim() && isTauriRuntime() ? 'Save' : 'Download'}{' '}
 						{format.toUpperCase()}
 					</button>
-
-					<span className="sa-sep" aria-hidden="true" />
-
-					<label className="sa-field" title="Optional. Paste a folder path to save directly to disk.">
-						<span className="sa-field-label">Output folder</span>
-						<div className="sa-input-wrap">
-							<input
-								type="text"
-								className="sa-input"
-								value={outputFolder}
-								onChange={(e) => setOutputFolder(e.target.value)}
-								placeholder={
-									isTauriRuntime()
-										? '/path/to/folder (optional)'
-										: 'Only available in the desktop app'
-								}
-								spellCheck={false}
-								autoCorrect="off"
-								autoCapitalize="off"
-								disabled={!isTauriRuntime()}
-							/>
-							{isTauriRuntime() && (
-								<button
-									type="button"
-									className="sa-input-icon"
-									aria-label="Choose output folder"
-									title="Choose folder…"
-									onClick={pickOutputFolder}
-								>
-									<svg
-										width="14"
-										height="14"
-										viewBox="0 0 16 16"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="1.4"
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										aria-hidden="true"
-									>
-										<path d="M1.5 4.5a1 1 0 0 1 1-1h3.3l1.4 1.4h6.3a1 1 0 0 1 1 1v6.6a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V4.5Z" />
-									</svg>
-								</button>
-							)}
-							{outputFolder && (
-								<button
-									type="button"
-									className="sa-input-clear"
-									aria-label="Clear output folder"
-									onClick={() => setOutputFolder('')}
-								>
-									×
-								</button>
-							)}
-						</div>
-					</label>
 
 					{isEditing ? (
 						<button type="button" className="sa-button" onClick={enterPreview}>
@@ -837,6 +807,51 @@ export default function ScreenshotAnnotator() {
 						</button>
 						<h2>Settings</h2>
 
+						<h3>Config file</h3>
+						<p>JSON file that defines the output folder. Edit it to switch blog posts.</p>
+						<div className="sa-input-wrap sa-input-wrap--block">
+							<input
+								type="text"
+								className="sa-input sa-input--block"
+								value={configFilePath}
+								onChange={(e) => setConfigFilePath(e.target.value)}
+								placeholder="/path/to/annotator.config.json"
+								spellCheck={false}
+								autoCorrect="off"
+								autoCapitalize="off"
+							/>
+							{isTauriRuntime() && (
+								<button
+									type="button"
+									className="sa-input-icon"
+									aria-label="Choose config file"
+									title="Choose file…"
+									onClick={pickConfigFile}
+								>
+									<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+										<path d="M1.5 4.5a1 1 0 0 1 1-1h3.3l1.4 1.4h6.3a1 1 0 0 1 1 1v6.6a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V4.5Z" />
+									</svg>
+								</button>
+							)}
+						</div>
+						{outputFolder && (
+							<p style={{ marginTop: '0.5rem', fontSize: '0.7rem', opacity: 0.65, wordBreak: 'break-all' }}>
+								→ {outputFolder}
+							</p>
+						)}
+						{isTauriRuntime() && (
+							<div style={{ marginTop: '0.4rem' }}>
+								<button
+									type="button"
+									className="sa-button"
+									style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }}
+									onClick={loadConfig}
+								>
+									Reload config
+								</button>
+							</div>
+						)}
+
 						<h3>Export format</h3>
 						<p>Format used when saving or downloading annotated screenshots.</p>
 						<div className="sa-segment" role="group" aria-label="Export format">
@@ -917,7 +932,7 @@ export default function ScreenshotAnnotator() {
 			)}
 
 			{savedImage && (() => {
-				const snippet = `<img src="${savedImage.filename}" />`;
+				const snippet = `<img src="${imgSrcPrefix}${savedImage.filename}" />`;
 				return (
 					<div
 						className="sa-about-backdrop"
@@ -952,9 +967,16 @@ export default function ScreenshotAnnotator() {
 								<button
 									type="button"
 									className="sa-button"
-									onClick={() => setSavedImage(null)}
+									onClick={async () => {
+										if (isTauriRuntime()) {
+											const { getCurrentWindow } = await import('@tauri-apps/api/window');
+											await getCurrentWindow().close();
+										} else {
+											setSavedImage(null);
+										}
+									}}
 								>
-									Close
+									Close App
 								</button>
 							</div>
 						</div>

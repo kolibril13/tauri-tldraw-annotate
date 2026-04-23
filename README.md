@@ -1,10 +1,11 @@
 # Quick Screenshot Annotator
 
-```
-bun run tauri dev
-bun run tauri build
-python3 scripts/copy_release_to_downloads.py
-
+```bash
+npm run tauri dev                        # dev build with hot reload  (most used)
+./build.sh                               # production build + reset Screen Recording permission
+npm run tauri build -- --bundles app     # production build only (no permission reset)
+npm install                              # install dependencies
+python3 scripts/copy_release_to_downloads.py  # copy .app/.dmg to ~/Downloads
 ```
 
 A minimal desktop app for quickly annotating screenshots. Paste a screenshot from

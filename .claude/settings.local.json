@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(echo \"Started with PID $!\")",
+      "Skill(claude-api)",
+      "Bash(kill 15761)",
+      "Bash(echo \"Restarted with PID $!\")",
+      "Bash(kill 17715)",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('identifier',''\\) or d.get\\('tauri',{}\\).get\\('bundle',{}\\).get\\('identifier',''\\)\\)\")",
+      "Bash(chmod +x *)",
+      "Bash(./build.sh *)",
+      "Bash(tccutil reset *)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(ls /Users/jan-hendrik/projects/tauri-tldraw-annotate/README*)"
+    ]
+  }
+}

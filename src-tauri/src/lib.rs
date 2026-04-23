@@ -88,7 +88,12 @@ async fn capture_screenshot(window: tauri::WebviewWindow) -> Result<Vec<u8>, Str
 
     let status = status.map_err(|e| format!("Failed to launch screencapture: {}", e))?;
     if !status.success() {
-        return Err(format!("screencapture exited with status {}", status));
+        // A non-zero exit with no output file almost always means Screen Recording
+        // permission was denied. Open System Settings directly so the user can grant it.
+        let _ = Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+            .spawn();
+        return Err("permission_denied".to_string());
     }
     if !tmp.exists() {
         return Err("cancelled".to_string());
@@ -140,6 +145,13 @@ fn save_image_to_folder(
     Ok(full_path.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    let path = expand_tilde(&path);
+    std::fs::read_to_string(&path)
+        .map_err(|e| format!("Could not read file: {}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -149,7 +161,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             save_image_to_folder,
-            capture_screenshot
+            capture_screenshot,
+            read_text_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
