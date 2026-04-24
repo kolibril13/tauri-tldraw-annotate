@@ -145,6 +145,53 @@ fn save_image_to_folder(
     Ok(full_path.to_string_lossy().to_string())
 }
 
+/// Read the clipboard image as raw PNG bytes (with ICC profile intact).
+///
+
+/// The `tauri-plugin-clipboard-manager` only exposes decoded RGBA pixel data,
+/// which strips the color profile. On macOS screenshots are in Display P3; if
+/// those values are re-encoded as sRGB PNG via a canvas they come out washed
+/// out. Reading the `public.png` UTI directly from NSPasteboard avoids that
+/// decode/re-encode roundtrip and preserves the embedded ICC profile so the
+/// browser can display the image correctly.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn read_clipboard_png() -> Result<Vec<u8>, String> {
+    use objc::runtime::Object;
+    use objc::{class, msg_send, sel, sel_impl};
+
+    unsafe {
+        let pasteboard: *mut Object = msg_send![class!(NSPasteboard), generalPasteboard];
+
+        let png_str = b"public.png\0".as_ptr() as *const std::os::raw::c_char;
+        let png_type: *mut Object =
+            msg_send![class!(NSString), stringWithUTF8String: png_str];
+
+        let data: *mut Object = msg_send![pasteboard, dataForType: png_type];
+        if data.is_null() {
+            return Err("no_image".to_string());
+        }
+
+        let length: usize = msg_send![data, length];
+        if length == 0 {
+            return Err("no_image".to_string());
+        }
+
+        let bytes: *const u8 = msg_send![data, bytes];
+        if bytes.is_null() {
+            return Err("no_image".to_string());
+        }
+
+        Ok(std::slice::from_raw_parts(bytes, length).to_vec())
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn read_clipboard_png() -> Result<Vec<u8>, String> {
+    Err("not_supported".to_string())
+}
+
 #[tauri::command]
 fn quit(app: tauri::AppHandle) {
     app.exit(0);
@@ -167,6 +214,7 @@ pub fn run() {
             greet,
             save_image_to_folder,
             capture_screenshot,
+            read_clipboard_png,
             read_text_file,
             quit
         ])

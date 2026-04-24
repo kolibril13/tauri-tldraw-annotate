@@ -75,7 +75,7 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 const CONFIG_FILE_STORAGE_KEY = 'sa.configFile';
-const DEFAULT_CONFIG_PATH = '/Users/jan-hendrik/projects/jan-hendrik-mueller.de/annotator.config.json';
+const DEFAULT_CONFIG_PATH = '/Users/jan-hendrik/projects/jan-hendrik-mueller.de/content-dirs.json';
 const FORMAT_STORAGE_KEY = 'sa.format';
 
 type OutputFormat = 'jpeg' | 'png' | 'webp';
@@ -279,31 +279,13 @@ export default function ScreenshotAnnotator() {
 		const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 		if (isTauri) {
 			try {
-				const { readImage } = await import('@tauri-apps/plugin-clipboard-manager');
-				const image = await readImage();
-				const bytes = await image.rgba();
-				const { width, height } = await image.size();
-				const canvas = document.createElement('canvas');
-				canvas.width = width;
-				canvas.height = height;
-				const ctx = canvas.getContext('2d');
-				if (!ctx) {
-					setStatus('Could not read clipboard image.');
-					return;
-				}
-				const imageData = new ImageData(
-					new Uint8ClampedArray(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)),
-					width,
-					height,
-				);
-				ctx.putImageData(imageData, 0, 0);
-				const blob: Blob | null = await new Promise((resolve) =>
-					canvas.toBlob((b) => resolve(b), 'image/png'),
-				);
-				if (!blob) {
-					setStatus('Could not read clipboard image.');
-					return;
-				}
+				// Read the raw PNG bytes directly from the macOS pasteboard so the
+				// embedded ICC profile (e.g. Display P3) is preserved. Going through
+				// readImage().rgba() → canvas strips the color profile and makes the
+				// image look washed out.
+				const { invoke } = await import('@tauri-apps/api/core');
+				const bytes = await invoke<number[]>('read_clipboard_png');
+				const blob = new Blob([new Uint8Array(bytes)], { type: 'image/png' });
 				await loadScreenshot(blob);
 			} catch {
 				setStatus('No image found in the clipboard.');
@@ -815,7 +797,7 @@ export default function ScreenshotAnnotator() {
 								className="sa-input sa-input--block"
 								value={configFilePath}
 								onChange={(e) => setConfigFilePath(e.target.value)}
-								placeholder="/path/to/annotator.config.json"
+								placeholder="/path/to/content-dirs.json"
 								spellCheck={false}
 								autoCorrect="off"
 								autoCapitalize="off"
