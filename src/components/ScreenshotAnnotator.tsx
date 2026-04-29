@@ -31,7 +31,7 @@ STROKE_SIZES.l = 10;
 STROKE_SIZES.xl = 20;
 
 const TLDRAW_LICENSE_KEY =
-	'tldraw-2026-07-31/WyJQUVo1VG1jbCIsWyIqIl0sMTYsIjIwMjYtMDctMzEiXQ.CkPyjP0F73725rI7q6mqJHPO1raBBtGrGMD4brtu2PaIXIywy8PRtij6fcPZHLws627nS5OuHc2OPquvffbhog';
+	'tldraw-2027-04-28/WyJ3M3IyVGtoMiIsWyIqLmphbi1oZW5kcmlrLW11ZWxsZXIuZGUiXSw5LCIyMDI3LTA0LTI4Il0.gxqjM0apGGRPYF6chEORY8bxOILgS/E8MEwG8rJFDrapzkq6kOP53BBcR8oeKxHUfegkIn2ZHhbQmL/FJR2NLQ';
 
 type Dimensions = { w: number; h: number };
 
