@@ -8,8 +8,8 @@ import {
 	DefaultMainMenuContent,
 	DefaultQuickActionsContent,
 	DefaultSizeStyle,
+	DrawShapeUtil,
 	getSnapshot,
-	STROKE_SIZES,
 	Tldraw,
 	TldrawImage,
 	TldrawUiMenuContextProvider,
@@ -26,9 +26,14 @@ import 'tldraw/tldraw.css';
 
 const assetUrls = getAssetUrlsByImport();
 
-STROKE_SIZES.m = 7;
-STROKE_SIZES.l = 10;
-STROKE_SIZES.xl = 20;
+const ANNOTATION_STROKE_WIDTHS: Record<string, number> = { s: 2, m: 7, l: 10, xl: 20 };
+
+const AnnotationDrawShapeUtil = DrawShapeUtil.configure({
+	getCustomDisplayValues(_editor, shape, _theme, _colorMode) {
+		const w = ANNOTATION_STROKE_WIDTHS[shape.props.size];
+		return w !== undefined ? { strokeWidth: w } : {};
+	},
+});
 
 const TLDRAW_LICENSE_KEY =
 	'tldraw-2027-04-28/WyJ3M3IyVGtoMiIsWyIqLmphbi1oZW5kcmlrLW11ZWxsZXIuZGUiXSw5LCIyMDI3LTA0LTI4Il0.gxqjM0apGGRPYF6chEORY8bxOILgS/E8MEwG8rJFDrapzkq6kOP53BBcR8oeKxHUfegkIn2ZHhbQmL/FJR2NLQ';
@@ -735,6 +740,7 @@ export default function ScreenshotAnnotator() {
 						licenseKey={TLDRAW_LICENSE_KEY}
 						assetUrls={assetUrls}
 						snapshot={snapshot}
+						shapeUtils={[AnnotationDrawShapeUtil]}
 						components={tldrawComponents}
 						onMount={(editor) => {
 							editorRef.current = editor;
