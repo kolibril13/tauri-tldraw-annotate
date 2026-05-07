@@ -88,12 +88,7 @@ async fn capture_screenshot(window: tauri::WebviewWindow) -> Result<Vec<u8>, Str
 
     let status = status.map_err(|e| format!("Failed to launch screencapture: {}", e))?;
     if !status.success() {
-        // A non-zero exit with no output file almost always means Screen Recording
-        // permission was denied. Open System Settings directly so the user can grant it.
-        let _ = Command::new("open")
-            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
-            .spawn();
-        return Err("permission_denied".to_string());
+        return Err(format!("screencapture exited with status {}", status));
     }
     if !tmp.exists() {
         return Err("cancelled".to_string());

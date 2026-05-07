@@ -255,10 +255,6 @@ export default function ScreenshotAnnotator() {
 			const message = err instanceof Error ? err.message : String(err);
 			// Sentinels from the Rust side.
 			if (message === 'cancelled') return;
-			if (message === 'permission_denied') {
-				setStatus('Screen Recording permission required — System Settings opened, grant access and try again.');
-				return;
-			}
 			setStatus(`Could not capture screenshot: ${message}`);
 		}
 	}, [loadScreenshot]);
