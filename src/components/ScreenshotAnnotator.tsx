@@ -80,7 +80,8 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 const CONFIG_FILE_STORAGE_KEY = 'sa.configFile';
-const DEFAULT_CONFIG_PATH = '/Users/jan-hendrik/projects/jan-hendrik-mueller.de/content-dirs.json';
+const OUTPUT_FOLDER_STORAGE_KEY = 'sa.outputFolder';
+const IMG_SRC_PREFIX_STORAGE_KEY = 'sa.imgSrcPrefix';
 const FORMAT_STORAGE_KEY = 'sa.format';
 
 type OutputFormat = 'jpeg' | 'png' | 'webp';
@@ -89,8 +90,47 @@ function isOutputFormat(value: string | null): value is OutputFormat {
 	return value === 'jpeg' || value === 'png' || value === 'webp';
 }
 
-function isTauriRuntime(): boolean {
-	return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const IS_TAURI =
+	typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+// Format a Date as `YYYY-MM-DD-HH-mm-ss` so saved files sort lexicographically
+// and stay readable when grepping a folder later. Local time, not UTC, since
+// the user is the only audience.
+function formatTimestamp(d: Date): string {
+	const pad = (n: number) => n.toString().padStart(2, '0');
+	return (
+		`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+		`-${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`
+	);
+}
+
+function readStoredString(key: string, fallback = ''): string {
+	if (typeof window === 'undefined') return fallback;
+	try {
+		return window.localStorage.getItem(key) ?? fallback;
+	} catch {
+		return fallback;
+	}
+}
+
+function writeStoredString(key: string, value: string) {
+	if (typeof window === 'undefined') return;
+	try {
+		window.localStorage.setItem(key, value);
+	} catch {
+		// ignore storage errors (e.g. private mode)
+	}
+}
+
+function useEscape(active: boolean, onEscape: () => void) {
+	useEffect(() => {
+		if (!active) return;
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') onEscape();
+		};
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
+	}, [active, onEscape]);
 }
 
 async function saveBlobToFolder(
@@ -111,7 +151,6 @@ async function saveBlobToFolder(
 
 export default function ScreenshotAnnotator() {
 	const editorRef = useRef<Editor | null>(null);
-	const dimsRef = useRef<Dimensions | null>(null);
 
 	const [dims, setDims] = useState<Dimensions | null>(null);
 	const [status, setStatus] = useState<string | null>(null);
@@ -139,10 +178,6 @@ export default function ScreenshotAnnotator() {
 	const [isDarkMode, setIsDarkMode] = useState(false);
 	const [isEditorReady, setIsEditorReady] = useState(false);
 	const hasStartupCapturedRef = useRef(false);
-
-	useEffect(() => {
-		dimsRef.current = dims;
-	}, [dims]);
 
 	const loadScreenshot = useCallback(async (blob: Blob) => {
 		const editor = editorRef.current;
@@ -246,7 +281,7 @@ export default function ScreenshotAnnotator() {
 	}, [askDownsample]);
 
 	const captureScreenshot = useCallback(async () => {
-		if (!isTauriRuntime()) {
+		if (!IS_TAURI) {
 			setStatus('Screen capture is only available in the desktop app.');
 			return;
 		}
@@ -269,7 +304,7 @@ export default function ScreenshotAnnotator() {
 	// `capture_screenshot`. Gated on the editor being mounted so the incoming
 	// screenshot never races tldraw's init.
 	useEffect(() => {
-		if (!isTauriRuntime()) return;
+		if (!IS_TAURI) return;
 		if (!isEditorReady) return;
 		if (hasStartupCapturedRef.current) return;
 		hasStartupCapturedRef.current = true;
@@ -277,8 +312,7 @@ export default function ScreenshotAnnotator() {
 	}, [isEditorReady, captureScreenshot]);
 
 	const pasteFromClipboard = useCallback(async () => {
-		const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-		if (isTauri) {
+		if (IS_TAURI) {
 			try {
 				// Read the raw PNG bytes directly from the macOS pasteboard so the
 				// embedded ICC profile (e.g. Display P3) is preserved. Going through
@@ -334,65 +368,86 @@ export default function ScreenshotAnnotator() {
 	}, [loadScreenshot]);
 
 	const [format, setFormat] = useState<OutputFormat>(() => {
-		if (typeof window === 'undefined') return 'jpeg';
-		try {
-			const stored = window.localStorage.getItem(FORMAT_STORAGE_KEY);
-			return isOutputFormat(stored) ? stored : 'jpeg';
-		} catch {
-			return 'jpeg';
-		}
+		const stored = readStoredString(FORMAT_STORAGE_KEY, 'jpeg');
+		return isOutputFormat(stored) ? stored : 'jpeg';
 	});
 	useEffect(() => {
-		if (typeof window === 'undefined') return;
-		try {
-			window.localStorage.setItem(FORMAT_STORAGE_KEY, format);
-		} catch {
-			// ignore storage errors (e.g. private mode)
-		}
+		writeStoredString(FORMAT_STORAGE_KEY, format);
 	}, [format]);
 
-	const [configFilePath, setConfigFilePath] = useState<string>(() => {
-		if (typeof window === 'undefined') return DEFAULT_CONFIG_PATH;
-		try {
-			return window.localStorage.getItem(CONFIG_FILE_STORAGE_KEY) ?? DEFAULT_CONFIG_PATH;
-		} catch {
-			return DEFAULT_CONFIG_PATH;
-		}
-	});
+	const [configFilePath, setConfigFilePath] = useState<string>(() =>
+		readStoredString(CONFIG_FILE_STORAGE_KEY),
+	);
 	useEffect(() => {
-		if (typeof window === 'undefined') return;
-		try {
-			window.localStorage.setItem(CONFIG_FILE_STORAGE_KEY, configFilePath);
-		} catch {
-			// ignore storage errors (e.g. private mode)
-		}
+		writeStoredString(CONFIG_FILE_STORAGE_KEY, configFilePath);
 	}, [configFilePath]);
 
-	const [outputFolder, setOutputFolder] = useState<string>('');
-	const [imgSrcPrefix, setImgSrcPrefix] = useState<string>('');
+	const [outputFolder, setOutputFolder] = useState<string>(() =>
+		readStoredString(OUTPUT_FOLDER_STORAGE_KEY),
+	);
+	useEffect(() => {
+		writeStoredString(OUTPUT_FOLDER_STORAGE_KEY, outputFolder);
+	}, [outputFolder]);
 
+	const [imgSrcPrefix, setImgSrcPrefix] = useState<string>(() =>
+		readStoredString(IMG_SRC_PREFIX_STORAGE_KEY),
+	);
+	useEffect(() => {
+		writeStoredString(IMG_SRC_PREFIX_STORAGE_KEY, imgSrcPrefix);
+	}, [imgSrcPrefix]);
+
+	// Loading the config file overwrites the folder + src prefix. Used for the
+	// "switch blog post" workflow where the same JSON drives several settings
+	// at once. Manual edits in the settings UI take precedence until the user
+	// hits "Reload config" again.
 	const loadConfig = useCallback(async () => {
-		if (!isTauriRuntime() || !configFilePath.trim()) return;
+		if (!IS_TAURI || !configFilePath.trim()) return;
 		try {
 			const { invoke } = await import('@tauri-apps/api/core');
 			const content = await invoke<string>('read_text_file', { path: configFilePath });
 			const config = JSON.parse(content) as Record<string, unknown>;
-			setOutputFolder(typeof config.outputFolder === 'string' ? config.outputFolder : '');
-			setImgSrcPrefix(typeof config.imgSrcPrefix === 'string' ? config.imgSrcPrefix : '');
-		} catch {
-			setOutputFolder('');
-			setImgSrcPrefix('');
+			if (typeof config.outputFolder === 'string') setOutputFolder(config.outputFolder);
+			if (typeof config.imgSrcPrefix === 'string') setImgSrcPrefix(config.imgSrcPrefix);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			setStatus(`Could not read config: ${message}`);
 		}
 	}, [configFilePath]);
 
+	// Auto-load the config file once on launch if one is configured. We don't
+	// re-run on every path change because the user might be mid-edit; they hit
+	// the explicit "Reload config" button when they want to apply.
+	const hasAutoLoadedConfigRef = useRef(false);
 	useEffect(() => {
+		if (hasAutoLoadedConfigRef.current) return;
+		if (!configFilePath.trim()) return;
+		hasAutoLoadedConfigRef.current = true;
 		void loadConfig();
-	}, [loadConfig]);
+	}, [configFilePath, loadConfig]);
 
 	const [showSettings, setShowSettings] = useState(false);
 
+	const pickOutputFolder = useCallback(async () => {
+		if (!IS_TAURI) return;
+		try {
+			const { open } = await import('@tauri-apps/plugin-dialog');
+			const selected = await open({
+				multiple: false,
+				directory: true,
+				title: 'Choose output folder',
+				defaultPath: outputFolder.trim() || undefined,
+			});
+			if (typeof selected === 'string' && selected.length > 0) {
+				setOutputFolder(selected);
+			}
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			setStatus(`Could not open folder picker: ${message}`);
+		}
+	}, [outputFolder]);
+
 	const pickConfigFile = useCallback(async () => {
-		if (!isTauriRuntime()) return;
+		if (!IS_TAURI) return;
 		try {
 			const { open } = await import('@tauri-apps/plugin-dialog');
 			const selected = await open({
@@ -455,14 +510,7 @@ export default function ScreenshotAnnotator() {
 			}
 		};
 	}, []);
-	useEffect(() => {
-		if (!savedImage) return;
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') setSavedImage(null);
-		};
-		window.addEventListener('keydown', onKey);
-		return () => window.removeEventListener('keydown', onKey);
-	}, [savedImage]);
+	useEscape(!!savedImage, () => setSavedImage(null));
 
 	const downloadImage = useCallback(async () => {
 		const editor = editorRef.current;
@@ -476,19 +524,18 @@ export default function ScreenshotAnnotator() {
 			return;
 		}
 		try {
-			const { blob } = await editor.toImage(shapeIds, {
-				format,
-				background: true,
-				padding: 0,
-				scale: 1,
-				pixelRatio: 1,
-				quality: 0.92,
-			});
+			// `quality` is meaningful for jpeg/webp (lossy) and ignored by png. Build
+			// the options conditionally so the export call is honest about intent.
+			const exportOpts =
+				format === 'png'
+					? { format, background: true, padding: 0, scale: 1, pixelRatio: 1 }
+					: { format, background: true, padding: 0, scale: 1, pixelRatio: 1, quality: 0.92 };
+			const { blob } = await editor.toImage(shapeIds, exportOpts);
 			const ext = format === 'jpeg' ? 'jpg' : format;
-			const filename = `annotated-${Date.now()}.${ext}`;
+			const filename = `annotated-${formatTimestamp(new Date())}.${ext}`;
 
 			const trimmedFolder = outputFolder.trim();
-			if (trimmedFolder && isTauriRuntime()) {
+			if (trimmedFolder && IS_TAURI) {
 				try {
 					const savedPath = await saveBlobToFolder(blob, trimmedFolder, filename);
 					setStatus(null);
@@ -569,10 +616,7 @@ export default function ScreenshotAnnotator() {
 			setStatus('Nothing to preview yet.');
 			return;
 		}
-		const frameBounds = editor.getShapePageBounds(FRAME_ID);
-		const bounds = frameBounds
-			? new Box(frameBounds.x, frameBounds.y, frameBounds.w, frameBounds.h)
-			: editor.getViewportPageBounds();
+		const bounds = editor.getShapePageBounds(FRAME_ID) ?? editor.getViewportPageBounds();
 		setIsDarkMode(editor.user.getIsDarkMode());
 		setPreviewPageId(editor.getCurrentPageId());
 		setPreviewBounds(bounds);
@@ -587,24 +631,10 @@ export default function ScreenshotAnnotator() {
 
 	const [showAbout, setShowAbout] = useState(false);
 
-	useEffect(() => {
-		if (!showAbout) return;
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') setShowAbout(false);
-		};
-		window.addEventListener('keydown', onKey);
-		return () => window.removeEventListener('keydown', onKey);
-	}, [showAbout]);
+	useEscape(showAbout, () => setShowAbout(false));
+	useEscape(showSettings, () => setShowSettings(false));
 
-	useEffect(() => {
-		if (!showSettings) return;
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') setShowSettings(false);
-		};
-		window.addEventListener('keydown', onKey);
-		return () => window.removeEventListener('keydown', onKey);
-	}, [showSettings]);
-
+	// Downsample prompt also wires Enter as a shortcut for "Scale down 2×".
 	useEffect(() => {
 		if (!downsamplePrompt) return;
 		const onKey = (e: KeyboardEvent) => {
@@ -621,7 +651,7 @@ export default function ScreenshotAnnotator() {
 				<div className="sa-group">
 					<div className="sa-stack">
 						<div className="sa-row">
-							{isTauriRuntime() && (
+							{IS_TAURI && (
 								<button
 									type="button"
 									className="sa-button"
@@ -647,7 +677,7 @@ export default function ScreenshotAnnotator() {
 							</button>
 						</div>
 						<span className="sa-hint">
-							{isTauriRuntime() ? (
+							{IS_TAURI ? (
 								<>
 									capture, or paste with <kbd>⌘</kbd> + <kbd>V</kbd>
 								</>
@@ -664,7 +694,7 @@ export default function ScreenshotAnnotator() {
 
 				<div className="sa-group sa-group--export">
 					<button type="button" className="sa-button sa-button--primary" onClick={downloadImage}>
-						{outputFolder.trim() && isTauriRuntime() ? 'Save' : 'Download'}{' '}
+						{outputFolder.trim() && IS_TAURI ? 'Save' : 'Download'}{' '}
 						{format.toUpperCase()}
 					</button>
 
@@ -791,26 +821,29 @@ export default function ScreenshotAnnotator() {
 						</button>
 						<h2>Settings</h2>
 
-						<h3>Config file</h3>
-						<p>JSON file that defines the output folder. Edit it to switch blog posts.</p>
+						<h3>Output folder</h3>
+						<p>
+							Where annotated screenshots are saved. Leave empty to use the browser
+							download flow instead.
+						</p>
 						<div className="sa-input-wrap sa-input-wrap--block">
 							<input
 								type="text"
 								className="sa-input sa-input--block"
-								value={configFilePath}
-								onChange={(e) => setConfigFilePath(e.target.value)}
-								placeholder="/path/to/content-dirs.json"
+								value={outputFolder}
+								onChange={(e) => setOutputFolder(e.target.value)}
+								placeholder="~/Pictures/screenshots"
 								spellCheck={false}
 								autoCorrect="off"
 								autoCapitalize="off"
 							/>
-							{isTauriRuntime() && (
+							{IS_TAURI && (
 								<button
 									type="button"
 									className="sa-input-icon"
-									aria-label="Choose config file"
-									title="Choose file…"
-									onClick={pickConfigFile}
+									aria-label="Choose output folder"
+									title="Choose folder…"
+									onClick={pickOutputFolder}
 								>
 									<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
 										<path d="M1.5 4.5a1 1 0 0 1 1-1h3.3l1.4 1.4h6.3a1 1 0 0 1 1 1v6.6a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V4.5Z" />
@@ -818,23 +851,22 @@ export default function ScreenshotAnnotator() {
 								</button>
 							)}
 						</div>
-						{outputFolder && (
-							<p style={{ marginTop: '0.5rem', fontSize: '0.7rem', opacity: 0.65, wordBreak: 'break-all' }}>
-								→ {outputFolder}
-							</p>
-						)}
-						{isTauriRuntime() && (
-							<div style={{ marginTop: '0.4rem' }}>
-								<button
-									type="button"
-									className="sa-button"
-									style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }}
-									onClick={loadConfig}
-								>
-									Reload config
-								</button>
-							</div>
-						)}
+
+						<h3>Image src prefix</h3>
+						<p>
+							Prepended to the filename in the markdown snippet shown after saving
+							(e.g. <code>/img/posts/</code>).
+						</p>
+						<input
+							type="text"
+							className="sa-input sa-input--block"
+							value={imgSrcPrefix}
+							onChange={(e) => setImgSrcPrefix(e.target.value)}
+							placeholder="/img/posts/"
+							spellCheck={false}
+							autoCorrect="off"
+							autoCapitalize="off"
+						/>
 
 						<h3>Export format</h3>
 						<p>Format used when saving or downloading annotated screenshots.</p>
@@ -851,6 +883,50 @@ export default function ScreenshotAnnotator() {
 								</button>
 							))}
 						</div>
+
+						<h3>Config file (optional)</h3>
+						<p>
+							JSON with <code>outputFolder</code> and <code>imgSrcPrefix</code>.
+							Use "Reload config" to overwrite the fields above — handy for
+							switching between projects.
+						</p>
+						<div className="sa-input-wrap sa-input-wrap--block">
+							<input
+								type="text"
+								className="sa-input sa-input--block"
+								value={configFilePath}
+								onChange={(e) => setConfigFilePath(e.target.value)}
+								placeholder="/path/to/content-dirs.json"
+								spellCheck={false}
+								autoCorrect="off"
+								autoCapitalize="off"
+							/>
+							{IS_TAURI && (
+								<button
+									type="button"
+									className="sa-input-icon"
+									aria-label="Choose config file"
+									title="Choose file…"
+									onClick={pickConfigFile}
+								>
+									<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+										<path d="M1.5 4.5a1 1 0 0 1 1-1h3.3l1.4 1.4h6.3a1 1 0 0 1 1 1v6.6a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V4.5Z" />
+									</svg>
+								</button>
+							)}
+						</div>
+						{IS_TAURI && configFilePath.trim() && (
+							<div style={{ marginTop: '0.4rem' }}>
+								<button
+									type="button"
+									className="sa-button"
+									style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }}
+									onClick={loadConfig}
+								>
+									Reload config
+								</button>
+							</div>
+						)}
 
 						<div className="sa-about-actions">
 							<button
@@ -948,19 +1024,25 @@ export default function ScreenshotAnnotator() {
 								</div>
 							</div>
 							<div className="sa-about-actions">
+								{IS_TAURI && (
+									<button
+										type="button"
+										className="sa-button"
+										onClick={async () => {
+											const { invoke } = await import('@tauri-apps/api/core');
+											await invoke('quit');
+										}}
+									>
+										Quit app
+									</button>
+								)}
 								<button
 									type="button"
 									className="sa-button sa-button--primary"
-									onClick={async () => {
-										if (isTauriRuntime()) {
-											const { invoke } = await import('@tauri-apps/api/core');
-											await invoke('quit');
-										} else {
-											setSavedImage(null);
-										}
-									}}
+									onClick={() => setSavedImage(null)}
+									autoFocus
 								>
-									Close App
+									Done
 								</button>
 							</div>
 						</div>

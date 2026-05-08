@@ -13,6 +13,9 @@ dist-ssr
 releases
 *.local
 
+# Use bun.lock as the single source of truth for dependencies.
+package-lock.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
