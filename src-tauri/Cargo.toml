@@ -28,3 +28,9 @@ tauri-plugin-dialog = "2.7.0"
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"
 
+# Whitelist the `cargo-clippy` cfg value used by the unmaintained `objc` 0.2
+# macros so newer rustc doesn't flood the build log with `unexpected_cfgs`
+# warnings on every `class!` / `msg_send!` expansion.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }
+
