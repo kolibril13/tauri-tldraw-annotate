@@ -27,5 +27,9 @@
       "Bash(ditto -c -k --sequesterRsrc --keepParent /Users/jan-hendrik/projects/tauri-tldraw-annotate/src-tauri/target/release/bundle/macos/curate-draw.app /Users/jan-hendrik/projects/jan-hendrik-mueller.de/public/curate-draw.zip)",
       "Read(//Users/jan-hendrik/projects/jan-hendrik-mueller.de/public/**)"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
   }
 }
