@@ -1,6 +1,6 @@
 [package]
 name = "curate-draw"
-version = "0.1.0"
+version = "0.0.0"
 description = "Curate Draw"
 authors = ["Jan-Hendrik Mueller"]
 edition = "2021"
