@@ -1,12 +1,15 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "node:fs";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
+const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8")) as { version: string };
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react()],
+  define: { __APP_VERSION__: JSON.stringify(version) },
 
   // `@tldraw/assets/imports.vite` uses Vite's `?url` import suffix, which
   // esbuild (used by Vite's dep optimizer) doesn't understand. Pre-bundling

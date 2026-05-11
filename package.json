@@ -1,14 +1,14 @@
 {
   "name": "curate-draw",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "release": "bun tauri build --bundles app && ditto -c -k --sequesterRsrc --keepParent src-tauri/target/release/bundle/macos/curate-draw.app /Users/jan-hendrik/projects/jan-hendrik-mueller.de/public/curate-draw.zip"
+    "release": "bun tauri build --bundles app && ditto -c -k --sequesterRsrc --keepParent src-tauri/target/release/bundle/macos/curate-draw.app /Users/jan-hendrik/projects/jan-hendrik-mueller.de/public/curate-draw.zip && python3 -c \"import json; p=json.load(open('package.json')); json.dump({'version':p['version']},open('/Users/jan-hendrik/projects/jan-hendrik-mueller.de/public/curate-draw-version.json','w'))\""
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

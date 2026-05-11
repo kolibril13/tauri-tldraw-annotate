@@ -93,6 +93,18 @@ function isOutputFormat(value: string | null): value is OutputFormat {
 const IS_TAURI =
 	typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+const UPDATE_CHECK_URL = 'https://jan-hendrik-mueller.de/curate-draw-version.json';
+const DOWNLOAD_URL = 'https://jan-hendrik-mueller.de/tools/curate-draw/';
+
+function isNewerVersion(remote: string, local: string): boolean {
+	const parse = (v: string) => v.split('.').map(Number);
+	const [rMaj = 0, rMin = 0, rPatch = 0] = parse(remote);
+	const [lMaj = 0, lMin = 0, lPatch = 0] = parse(local);
+	if (rMaj !== lMaj) return rMaj > lMaj;
+	if (rMin !== lMin) return rMin > lMin;
+	return rPatch > lPatch;
+}
+
 // Format a Date as `YYYY-MM-DD-HH-mm-ss` so saved files sort lexicographically
 // and stay readable when grepping a folder later. Local time, not UTC, since
 // the user is the only audience.
@@ -630,6 +642,25 @@ export default function ScreenshotAnnotator() {
 	}, []);
 
 	const [showAbout, setShowAbout] = useState(false);
+	const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
+	const [updateDismissed, setUpdateDismissed] = useState(false);
+
+	useEffect(() => {
+		if (!IS_TAURI) return;
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), 5000);
+		fetch(UPDATE_CHECK_URL, { signal: controller.signal })
+			.then((r) => r.json())
+			.then((data: unknown) => {
+				if (data && typeof data === 'object' && 'version' in data && typeof (data as { version: unknown }).version === 'string') {
+					const remote = (data as { version: string }).version;
+					if (isNewerVersion(remote, __APP_VERSION__)) setUpdateAvailable(remote);
+				}
+			})
+			.catch(() => {})
+			.finally(() => clearTimeout(timer));
+		return () => { controller.abort(); clearTimeout(timer); };
+	}, []);
 
 	useEscape(showAbout, () => setShowAbout(false));
 	useEscape(showSettings, () => setShowSettings(false));
@@ -763,6 +794,23 @@ export default function ScreenshotAnnotator() {
 					</button>
 				</div>
 			</div>
+
+			{updateAvailable && !updateDismissed && (
+				<div className="sa-update-banner" role="status">
+					<span>Update available — v{updateAvailable}</span>
+					<a href={DOWNLOAD_URL} target="_blank" rel="noreferrer" className="sa-update-link">
+						Download
+					</a>
+					<button
+						type="button"
+						className="sa-update-dismiss"
+						aria-label="Dismiss update notification"
+						onClick={() => setUpdateDismissed(true)}
+					>
+						×
+					</button>
+				</div>
+			)}
 
 			<div className="sa-canvas">
 				{isEditing ? (
