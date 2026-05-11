@@ -1006,8 +1006,13 @@ export default function ScreenshotAnnotator() {
 						>
 							×
 						</button>
-						<h2>About</h2>
-						<p>This is a quick and minimal screenshot annotator tool.</p>
+						<div className="sa-about-header">
+							<span className="sa-about-title">Curate Draw</span>
+							<span className="sa-about-version">v{__APP_VERSION__}</span>
+						</div>
+						<p>A quick, minimal screenshot annotation tool for macOS.</p>
+
+						<div className="sa-about-divider" />
 
 						<h3>How it works</h3>
 						<ol>

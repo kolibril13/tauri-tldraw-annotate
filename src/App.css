@@ -398,12 +398,34 @@ body,
 	line-height: 1.7;
 }
 
-.sa-about-dialog h2 {
-	font-size: 0.85rem;
+.sa-about-header {
+	display: flex;
+	align-items: baseline;
+	gap: 0.6rem;
+	margin-bottom: 0.6rem;
+}
+
+.sa-about-title {
+	font-size: 1.1rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	color: var(--navy);
+}
+
+.sa-about-version {
+	font-size: 0.6rem;
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
-	margin: 0 0 0.5rem;
-	color: var(--navy);
+	color: var(--orange);
+	border: 1px solid color-mix(in srgb, var(--orange) 50%, transparent);
+	padding: 0.1rem 0.4rem;
+	border-radius: 2px;
+}
+
+.sa-about-divider {
+	height: 1px;
+	background: color-mix(in srgb, var(--navy) 12%, transparent);
+	margin: 1rem 0;
 }
 
 .sa-about-dialog h3 {
