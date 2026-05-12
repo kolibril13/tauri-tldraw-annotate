@@ -568,6 +568,42 @@ export default function ScreenshotAnnotator() {
 		}
 	}, [format, outputFolder, showToast]);
 
+	const copyToClipboard = useCallback(async () => {
+		const editor = editorRef.current;
+		if (!editor) return;
+		const hasFrame = !!editor.getShape(FRAME_ID);
+		const shapeIds = hasFrame
+			? [FRAME_ID]
+			: [...editor.getCurrentPageShapeIds()];
+		if (shapeIds.length === 0) {
+			setStatus('Nothing to copy yet.');
+			return;
+		}
+		try {
+			const { blob } = await editor.toImage(shapeIds, {
+				format: 'png',
+				background: true,
+				padding: 0,
+				scale: 1,
+				pixelRatio: 1,
+			});
+			if (IS_TAURI) {
+				const { invoke } = await import('@tauri-apps/api/core');
+				const buf = await blob.arrayBuffer();
+				const bytes = Array.from(new Uint8Array(buf));
+				await invoke('write_clipboard_png', { bytes });
+			} else {
+				await navigator.clipboard.write([
+					new ClipboardItem({ 'image/png': blob }),
+				]);
+			}
+			setStatus(null);
+			showToast('Copied to clipboard');
+		} catch {
+			setStatus('Could not copy to clipboard.');
+		}
+	}, [showToast]);
+
 	const clearAll = useCallback(() => {
 		const editor = editorRef.current;
 		if (!editor) return;
@@ -727,6 +763,10 @@ export default function ScreenshotAnnotator() {
 					<button type="button" className="sa-button sa-button--primary" onClick={downloadImage}>
 						{outputFolder.trim() && IS_TAURI ? 'Save' : 'Download'}{' '}
 						{format.toUpperCase()}
+					</button>
+
+					<button type="button" className="sa-button" onClick={copyToClipboard}>
+						Copy to Clipboard
 					</button>
 
 					{isEditing ? (

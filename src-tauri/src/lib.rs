@@ -187,6 +187,53 @@ fn read_clipboard_png() -> Result<Vec<u8>, String> {
     Err("not_supported".to_string())
 }
 
+/// Write raw PNG bytes (with ICC profile intact) to the clipboard.
+///
+/// Symmetric to `read_clipboard_png`: goes directly through NSPasteboard so the
+/// embedded color profile survives the round-trip. Browsers' `ClipboardItem`
+/// API isn't reliable inside the WKWebView, so we don't try to use it here.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn write_clipboard_png(bytes: Vec<u8>) -> Result<(), String> {
+    use objc::runtime::Object;
+    use objc::{class, msg_send, sel, sel_impl};
+
+    if bytes.is_empty() {
+        return Err("empty".to_string());
+    }
+
+    unsafe {
+        let pasteboard: *mut Object = msg_send![class!(NSPasteboard), generalPasteboard];
+        let _: i64 = msg_send![pasteboard, clearContents];
+
+        let data: *mut Object = msg_send![
+            class!(NSData),
+            dataWithBytes: bytes.as_ptr() as *const std::os::raw::c_void
+            length: bytes.len()
+        ];
+        if data.is_null() {
+            return Err("could not allocate NSData".to_string());
+        }
+
+        let png_str = b"public.png\0".as_ptr() as *const std::os::raw::c_char;
+        let png_type: *mut Object =
+            msg_send![class!(NSString), stringWithUTF8String: png_str];
+
+        let ok: bool = msg_send![pasteboard, setData: data forType: png_type];
+        if !ok {
+            return Err("pasteboard rejected data".to_string());
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn write_clipboard_png(_bytes: Vec<u8>) -> Result<(), String> {
+    Err("not_supported".to_string())
+}
+
 #[tauri::command]
 fn quit(app: tauri::AppHandle) {
     app.exit(0);
@@ -211,6 +258,7 @@ pub fn run() {
             save_image_to_folder,
             capture_screenshot,
             read_clipboard_png,
+            write_clipboard_png,
             read_text_file,
             quit
         ])
