@@ -292,24 +292,115 @@ export default function ScreenshotAnnotator() {
 		setDims({ w, h });
 	}, [askDownsample]);
 
-	const captureScreenshot = useCallback(async () => {
+	// Add a screenshot *on top of* the current one instead of replacing it. The
+	// new image becomes a movable child of the existing frame (so it's part of
+	// the export) and is left selected so the user can drag it into place. With
+	// no base screenshot yet, this just behaves like a normal load.
+	const addScreenshot = useCallback(async (blob: Blob) => {
+		const editor = editorRef.current;
+		if (!editor) {
+			setStatus('Switch to edit mode before adding a screenshot.');
+			return;
+		}
+		if (!editor.getShape(FRAME_ID)) {
+			await loadScreenshot(blob);
+			return;
+		}
+
+		setStatus(null);
+
+		const dataUrl = await blobToDataUrl(blob);
+		const original = await loadImageSize(dataUrl);
+		let { w, h } = original;
+
+		if (h > 1000) {
+			const shouldScale = await askDownsample(original);
+			if (shouldScale) {
+				w = Math.round(w / 2);
+				h = Math.round(h / 2);
+			}
+		}
+
+		const frameBounds = editor.getShapePageBounds(FRAME_ID);
+		// Scale to sit comfortably inside the frame so it lands fully visible.
+		let placeW = w;
+		let placeH = h;
+		if (frameBounds) {
+			const fit = Math.min(1, (frameBounds.w * 0.9) / w, (frameBounds.h * 0.9) / h);
+			placeW = Math.round(w * fit);
+			placeH = Math.round(h * fit);
+		}
+
+		const imageId = createShapeId();
+		editor.run(
+			() => {
+				const assetId = AssetRecordType.createId();
+				editor.createAssets([
+					{
+						id: assetId,
+						type: 'image',
+						typeName: 'asset',
+						props: {
+							name: 'screenshot.png',
+							src: dataUrl,
+							w,
+							h,
+							mimeType: blob.type || 'image/png',
+							isAnimated: false,
+						},
+						meta: {},
+					},
+				]);
+
+				// Frame children use frame-local coords; the frame sits at the page
+				// origin, so centering against its bounds works directly.
+				const x = frameBounds ? Math.round((frameBounds.w - placeW) / 2) : 0;
+				const y = frameBounds ? Math.round((frameBounds.h - placeH) / 2) : 0;
+				editor.createShape({
+					id: imageId,
+					type: 'image',
+					parentId: FRAME_ID,
+					x,
+					y,
+					props: { assetId, w: placeW, h: placeH },
+				});
+			},
+			{ history: 'ignore', ignoreShapeLock: true },
+		);
+
+		// Let the user reposition the freshly added screenshot right away.
+		editor.setCurrentTool('select');
+		editor.select(imageId);
+	}, [askDownsample, loadScreenshot]);
+
+	const captureBlob = useCallback(async (): Promise<Blob | null> => {
 		if (!IS_TAURI) {
 			setStatus('Screen capture is only available in the desktop app.');
-			return;
+			return null;
 		}
 		setStatus(null);
 		try {
 			const { invoke } = await import('@tauri-apps/api/core');
 			const bytes = await invoke<number[]>('capture_screenshot');
-			const blob = new Blob([new Uint8Array(bytes)], { type: 'image/png' });
-			await loadScreenshot(blob);
+			return new Blob([new Uint8Array(bytes)], { type: 'image/png' });
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			// Sentinels from the Rust side.
-			if (message === 'cancelled') return;
+			if (message === 'cancelled') return null;
 			setStatus(`Could not capture screenshot: ${message}`);
+			return null;
 		}
-	}, [loadScreenshot]);
+	}, []);
+
+	const captureScreenshot = useCallback(async () => {
+		const blob = await captureBlob();
+		if (blob) await loadScreenshot(blob);
+	}, [captureBlob, loadScreenshot]);
+
+	const captureAdditional = useCallback(async () => {
+		const blob = await captureBlob();
+		if (blob) await addScreenshot(blob);
+	}, [captureBlob, addScreenshot]);
 
 	// On desktop, launch straight into the selection tool: the window stays
 	// hidden (per tauri.conf) until the Rust side reveals it at the end of
@@ -323,7 +414,7 @@ export default function ScreenshotAnnotator() {
 		void captureScreenshot();
 	}, [isEditorReady, captureScreenshot]);
 
-	const pasteFromClipboard = useCallback(async () => {
+	const readClipboardBlob = useCallback(async (): Promise<Blob | null> => {
 		if (IS_TAURI) {
 			try {
 				// Read the raw PNG bytes directly from the macOS pasteboard so the
@@ -332,33 +423,42 @@ export default function ScreenshotAnnotator() {
 				// image look washed out.
 				const { invoke } = await import('@tauri-apps/api/core');
 				const bytes = await invoke<number[]>('read_clipboard_png');
-				const blob = new Blob([new Uint8Array(bytes)], { type: 'image/png' });
-				await loadScreenshot(blob);
+				return new Blob([new Uint8Array(bytes)], { type: 'image/png' });
 			} catch {
 				setStatus('No image found in the clipboard.');
+				return null;
 			}
-			return;
 		}
 
 		if (!navigator.clipboard || !navigator.clipboard.read) {
 			setStatus('Clipboard API not available. Use Ctrl/Cmd + V instead.');
-			return;
+			return null;
 		}
 		try {
 			const items = await navigator.clipboard.read();
 			for (const item of items) {
 				const imageType = item.types.find((t) => t.startsWith('image/'));
 				if (imageType) {
-					const blob = await item.getType(imageType);
-					await loadScreenshot(blob);
-					return;
+					return await item.getType(imageType);
 				}
 			}
 			setStatus('No image found in the clipboard.');
+			return null;
 		} catch {
 			setStatus('Could not read clipboard. Try Ctrl/Cmd + V instead.');
+			return null;
 		}
-	}, [loadScreenshot]);
+	}, []);
+
+	const pasteFromClipboard = useCallback(async () => {
+		const blob = await readClipboardBlob();
+		if (blob) await loadScreenshot(blob);
+	}, [readClipboardBlob, loadScreenshot]);
+
+	const pasteAdditional = useCallback(async () => {
+		const blob = await readClipboardBlob();
+		if (blob) await addScreenshot(blob);
+	}, [readClipboardBlob, addScreenshot]);
 
 	useEffect(() => {
 		const handler = (event: ClipboardEvent) => {
@@ -741,6 +841,41 @@ export default function ScreenshotAnnotator() {
 								title={isEditing ? undefined : 'Switch to edit mode to paste'}
 							>
 								Paste screenshot
+							</button>
+
+							<span className="sa-sep sa-sep--tight" aria-hidden="true" />
+
+							{IS_TAURI && (
+								<button
+									type="button"
+									className="sa-button sa-button--ghost"
+									onClick={captureAdditional}
+									disabled={!isEditing || !dims}
+									title={
+										!dims
+											? 'Capture or paste a screenshot first'
+											: isEditing
+												? 'Capture another region and add it on top — keeps the current screenshot'
+												: 'Switch to edit mode to add'
+									}
+								>
+									+ Capture
+								</button>
+							)}
+							<button
+								type="button"
+								className="sa-button sa-button--ghost"
+								onClick={pasteAdditional}
+								disabled={!isEditing || !dims}
+								title={
+									!dims
+										? 'Capture or paste a screenshot first'
+										: isEditing
+											? 'Paste another screenshot and add it on top — keeps the current screenshot'
+											: 'Switch to edit mode to add'
+								}
+							>
+								+ Paste
 							</button>
 						</div>
 						<span className="sa-hint">
